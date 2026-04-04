@@ -60,7 +60,7 @@ Defaults are in `shared/config.ts`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `maxSprints` | 10 | Maximum number of sprints |
+| `maxSprints` | 25 | Maximum number of sprints |
 | `maxRetriesPerSprint` | 3 | Max evaluation retries before failing a sprint |
 | `passThreshold` | 7 | Minimum score (out of 10) for each criterion |
 | `CLAUDE_MODEL` | `claude-sonnet-4-6` | Model for Claude harness |

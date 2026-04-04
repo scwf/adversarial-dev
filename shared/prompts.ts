@@ -31,7 +31,7 @@ For each feature, provide:
 - Which sprint it belongs to
 
 ### Sprint Plan
-Organize features into sprints (3-6 sprints). Each sprint should:
+Organize features into sprints. Match the count to scope: smaller products often land in roughly 4-8 sprints; larger or more ambitious specs may need more phases—use as many as necessary (up to 25) so each sprint stays themed, testable, and roughly equal in effort. Prefer extra sprints over packing unrelated features together. Each sprint should:
 - Have a clear theme/focus
 - Build on previous sprints
 - Be independently testable

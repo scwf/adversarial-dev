@@ -1,7 +1,7 @@
 import type { HarnessConfig } from "./types.ts";
 
 export const DEFAULT_CONFIG: Omit<HarnessConfig, "userPrompt" | "workDir"> = {
-  maxSprints: 10,
+  maxSprints: 25,
   maxRetriesPerSprint: 3,
   passThreshold: 7,
   skipSpecConfirmation: false,
