@@ -4,6 +4,8 @@ export interface HarnessConfig {
   maxSprints: number;
   maxRetriesPerSprint: number;
   passThreshold: number;
+  /** If true, skip the interactive pause after planning (CI / non-interactive runs). */
+  skipSpecConfirmation?: boolean;
 }
 
 export interface SprintContract {

@@ -4,6 +4,7 @@ export const DEFAULT_CONFIG: Omit<HarnessConfig, "userPrompt" | "workDir"> = {
   maxSprints: 10,
   maxRetriesPerSprint: 3,
   passThreshold: 7,
+  skipSpecConfirmation: false,
 };
 
 export const CLAUDE_MODEL = "claude-sonnet-4-6";
