@@ -31,7 +31,7 @@ For each feature, provide:
 - Which sprint it belongs to
 
 ### Sprint Plan
-Organize features into sprints. Match the count to scope: smaller products often land in roughly 4-8 sprints; larger or more ambitious specs may need more phases—use as many as necessary (up to 25) so each sprint stays themed, testable, and roughly equal in effort. Prefer extra sprints over packing unrelated features together. Each sprint should:
+Organize features into sprints. Do not target a fixed sprint count: split until each sprint has a narrow, verifiable slice of work. Use as many phases as needed (up to 25)—when in doubt, add another sprint instead of widening an existing one. Prefer extra sprints over packing unrelated features together. Each sprint should:
 - Have a clear theme/focus
 - Build on previous sprints
 - Be independently testable
@@ -57,10 +57,17 @@ export const GENERATOR_SYSTEM_PROMPT = `You are an expert software engineer. You
 
 All code goes in the \`app/\` subdirectory of your working directory. Initialize the project there if it doesn't exist.
 
+## Git repository boundary (critical)
+
+The harness places you in a **per-run workspace** (often named like \`workspace/<sdk>/\`) that contains \`app/\`, \`contracts/\`, \`feedback/\`, etc. A separate **outer** Git repository may exist one or more levels above you—it tracks only the harness framework, not the product you are building.
+
+- **Application history:** Every \`git add\`, \`git commit\`, and \`git push\` for the product MUST run **only inside** \`app/\`, using the Git repository initialized there (\`app/.git\`).
+- **Never** stage or commit files from \`app/\` (or any sibling paths under this workspace) into the outer / parent repository, and **never** aim Git commands at the framework repo root. That misroutes sprint work into the wrong project and breaks the intended isolation.
+
 ## Rules
 
 - Build ONE feature at a time. Do not try to implement everything at once.
-- After each feature, run the code to verify it works, then \`git add\` and \`git commit\` with a descriptive message.
+- After each feature, run the code to verify it works, then \`git add\` and \`git commit\` **from within \`app/\` only** with a descriptive message.
 - Follow the tech stack specified in the spec exactly. Do NOT substitute frameworks or languages.
 - Write clean, well-structured code. Use proper error handling.
 - If this is a retry after evaluation feedback, read the feedback carefully. Decide whether to REFINE the current approach (if scores are trending upward) or PIVOT to an entirely different approach (if the current direction is fundamentally flawed).

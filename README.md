@@ -10,11 +10,13 @@ Most AI coding agents fail on complex tasks not because the model is bad, but be
 
 This project implements the fix: three agents, each with a focused job and its own context window.
 
-| Agent | Role | Analogy |
-|-------|------|---------|
-| **Planner** | Expands a short prompt into a full product spec with sprints | Product manager |
-| **Generator** | Builds one feature at a time, commits to git | Software engineer |
-| **Evaluator** | Actively tries to break what the generator built, scores ruthlessly | Adversarial QA |
+
+| Agent         | Role                                                                | Analogy           |
+| ------------- | ------------------------------------------------------------------- | ----------------- |
+| **Planner**   | Expands a short prompt into a full product spec with sprints        | Product manager   |
+| **Generator** | Builds one feature at a time, commits to git                        | Software engineer |
+| **Evaluator** | Actively tries to break what the generator built, scores ruthlessly | Adversarial QA    |
+
 
 The evaluator doesn't just review code -- it's an adversary. It runs the application, probes for failures, tests edge cases the generator didn't think of, and scores each criterion on a 1-10 scale with a hard pass threshold. If any criterion fails, the sprint goes back to the generator with detailed, unforgiving feedback. The generator has to fight its way past the evaluator to advance. This adversarial pressure is what turns AI-generated code from "looks right" into "actually works."
 
@@ -58,34 +60,42 @@ Both harnesses write their output to `workspace/claude/` and `workspace/codex/` 
 
 Defaults are in `shared/config.ts`:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `maxSprints` | 25 | Maximum number of sprints |
-| `maxRetriesPerSprint` | 3 | Max evaluation retries before failing a sprint |
-| `passThreshold` | 7 | Minimum score (out of 10) for each criterion |
-| `CLAUDE_MODEL` | `claude-sonnet-4-6` | Model for Claude harness |
-| `CODEX_MODEL` | `gpt-5.4` | Model for Codex harness |
+
+| Setting               | Default             | Description                                    |
+| --------------------- | ------------------- | ---------------------------------------------- |
+| `maxSprints`          | 25                  | Maximum number of sprints                      |
+| `maxRetriesPerSprint` | 3                   | Max evaluation retries before failing a sprint |
+| `passThreshold`       | 7                   | Minimum score (out of 10) for each criterion   |
+| `CLAUDE_MODEL`        | `claude-sonnet-4-6` | Model for Claude harness                       |
+| `CODEX_MODEL`         | `gpt-5.4`           | Model for Codex harness                        |
+
 
 ## How It Works
 
 When you run a harness, here's what happens step by step:
 
 ### 1. Planning Phase
+
 The planner takes your short prompt and generates a comprehensive product specification with features organized into sprints, a design language, and tech stack decisions. This spec is written to `spec.md`.
 
 ### 2. Contract Negotiation (per sprint)
+
 The generator proposes what it will build and how success should be measured. The evaluator reviews the criteria, making them more specific, adding edge cases, and raising the bar. They iterate until locked in. The contract is saved as JSON.
 
 ### 3. Build Phase (per sprint)
+
 The generator reads the spec and contract, then implements features one at a time with git commits after each. It has full access to create files, run commands, install dependencies, and test code.
 
 ### 4. Evaluation Phase (per sprint)
+
 The evaluator reads the contract criteria, examines the code, **runs the application**, and tries to break it. It scores each criterion on a 1-10 scale. If all criteria pass (score >= 7/10), the sprint survives. If any fail, detailed feedback goes back to the generator -- with file paths, line numbers, and exact failure descriptions.
 
 ### 5. Retry Loop
+
 The generator reads the adversarial feedback, decides whether to refine or pivot, and rebuilds. This cycles up to 3 times per sprint. If a sprint can't survive the evaluator after all retries, the harness stops.
 
 ### 6. Completion
+
 Once all sprints pass, you have a working application built incrementally with quality gates at every step -- every feature tested by an agent whose job was to break it.
 
 ## The Architecture
@@ -123,6 +133,7 @@ The evaluator uses contract negotiation to set traps -- adding edge cases, tight
 ### File-Based Communication
 
 Agents communicate through files, not shared conversation history. This keeps each agent's context focused on its role:
+
 - `spec.md` -- Product specification from the planner
 - `contracts/sprint-{n}.json` -- Sprint contracts
 - `feedback/sprint-{n}-round-{m}.json` -- Evaluator feedback per attempt
@@ -132,13 +143,15 @@ Agents communicate through files, not shared conversation history. This keeps ea
 
 This architecture is inspired by **Generative Adversarial Networks** (GANs), where a generator creates outputs and a discriminator tries to reject them, iterating until quality emerges from the tension between the two.
 
-| GANs | This Harness |
-|------|-------------|
-| Generator vs. discriminator | **Generator vs. evaluator** |
-| Gradient descent | **Hard pass/fail thresholds** |
-| Two networks | **Three agents** (adds planner) |
-| Continuous training | **Sprint-based iteration** |
-| Zero-sum game | **Asymmetric adversarial** -- evaluator tries to break, generator tries to survive |
+
+| GANs                        | This Harness                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| Generator vs. discriminator | **Generator vs. evaluator**                                                        |
+| Gradient descent            | **Hard pass/fail thresholds**                                                      |
+| Two networks                | **Three agents** (adds planner)                                                    |
+| Continuous training         | **Sprint-based iteration**                                                         |
+| Zero-sum game               | **Asymmetric adversarial** -- evaluator tries to break, generator tries to survive |
+
 
 The core insight is the same: **separate generation from evaluation, then pit them against each other**. A generator that evaluates its own work converges on mediocrity. A separate evaluator with the explicit mandate to find failures creates the adversarial pressure that forces quality upward. The generator doesn't just build -- it builds knowing an adversary is waiting.
 
@@ -155,6 +168,7 @@ As models improve, harnesses simplify. When Opus 4.5 shipped, Anthropic removed 
 But the frontier doesn't shrink -- it moves. Better models make previous scaffolding unnecessary while opening new possibilities for harnesses that achieve more complex tasks. The **pattern** of separating planning, building, and evaluation is durable even as the implementation details evolve.
 
 Two principles that matter most:
+
 1. **Separate evaluation from generation.** Don't let the agent grade its own homework.
 2. **Define "done" before you start.** Sprint contracts are how you turn vibing into engineering.
 

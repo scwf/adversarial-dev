@@ -1,5 +1,7 @@
 # dependencies (bun install)
 node_modules
+# npm lockfile — this repo standardizes on bun.lock; ignore accidental npm install output
+package-lock.json
 
 # output
 out
@@ -44,3 +46,6 @@ __pycache__/
 
 # Runtime workspace directories
 workspace/
+
+# Local product ideas / personal specs (not part of the harness repo)
+product-idea/
