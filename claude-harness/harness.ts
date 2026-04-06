@@ -5,6 +5,7 @@ import {
 } from "../shared/prompts.ts";
 import { CLAUDE_MODEL } from "../shared/config.ts";
 import { log, logError, logDivider } from "../shared/logger.ts";
+import { waitForSpecConfirmation } from "../shared/spec-confirm.ts";
 import {
   initWorkspace,
   writeSpec,
@@ -61,6 +62,14 @@ export async function runHarness(config: HarnessConfig): Promise<HarnessResult> 
     log("HARNESS", "Planner returned spec as text, writing to spec.md");
     await writeSpec(config.workDir, plannerResponse);
     spec = plannerResponse;
+  }
+
+  const skipSpecConfirm =
+    config.skipSpecConfirmation === true ||
+    process.env.ADVERSARIAL_SKIP_SPEC_CONFIRM === "1";
+  if (!skipSpecConfirm) {
+    await waitForSpecConfirmation(config.workDir);
+    spec = await readSpec(config.workDir);
   }
 
   // Parse sprint count from spec - look for "Sprint N" patterns

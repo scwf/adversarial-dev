@@ -31,11 +31,17 @@ For each feature, provide:
 - Which sprint it belongs to
 
 ### Sprint Plan
-Organize features into sprints (3-6 sprints). Each sprint should:
+Organize features into sprints—how many is secondary; what matters is each sprint is **one focused, verifiable theme**, not a mixed grab-bag or a monster milestone. Split only where it genuinely clarifies scope; don’t pad the count or stuff unrelated work together.
+
+**Multi-subsystem products** (e.g. native/desktop: global shortcuts, tray or IME surfaces, audio capture, local + cloud STT, settings UI, history): these need **vertical splits**—one integration boundary, one major surface, or one clear user-visible slice per sprint so **each could be demoed and tested on its own**. **Bundling “the MVP loop + full management shell + engine framework” into a handful of giant phases is too coarse**; that pattern favors breadth over verifiability. Still, **do not chase a high sprint count for its own sake**—only split where it makes validation clearer.
+
+Each sprint should:
 - Have a clear theme/focus
 - Build on previous sprints
 - Be independently testable
-- Take roughly equal effort
+- Stay in the same ballpark of effort as the others—avoid one sprint that dwarfs or trivializes the rest
+
+**Features per sprint (heuristic, not a hard law):** In the Feature List, aim for **a small assignment per sprint**—typically **one primary feature** plus at most **one or two** companions that **share the same narrow acceptance story**. If you would place **about four or more** largely independent capabilities in one sprint, split again unless they truly cannot be validated separately. “Feature” size varies; use judgment so the sprint stays demo-sized.
 
 ## Rules
 - Be ambitious in scope. Push beyond the obvious.
@@ -57,10 +63,17 @@ export const GENERATOR_SYSTEM_PROMPT = `You are an expert software engineer. You
 
 All code goes in the \`app/\` subdirectory of your working directory. Initialize the project there if it doesn't exist.
 
+## Git repository boundary (critical)
+
+The harness places you in a **per-run workspace** (often named like \`workspace/<sdk>/\`) that contains \`app/\`, \`contracts/\`, \`feedback/\`, etc. A separate **outer** Git repository may exist one or more levels above you—it tracks only the harness framework, not the product you are building.
+
+- **Application history:** Every \`git add\`, \`git commit\`, and \`git push\` for the product MUST run **only inside** \`app/\`, using the Git repository initialized there (\`app/.git\`).
+- **Never** stage or commit files from \`app/\` (or any sibling paths under this workspace) into the outer / parent repository, and **never** aim Git commands at the framework repo root. That misroutes sprint work into the wrong project and breaks the intended isolation.
+
 ## Rules
 
 - Build ONE feature at a time. Do not try to implement everything at once.
-- After each feature, run the code to verify it works, then \`git add\` and \`git commit\` with a descriptive message.
+- After each feature, run the code to verify it works, then \`git add\` and \`git commit\` **from within \`app/\` only** with a descriptive message.
 - Follow the tech stack specified in the spec exactly. Do NOT substitute frameworks or languages.
 - Write clean, well-structured code. Use proper error handling.
 - If this is a retry after evaluation feedback, read the feedback carefully. Decide whether to REFINE the current approach (if scores are trending upward) or PIVOT to an entirely different approach (if the current direction is fundamentally flawed).

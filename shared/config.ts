@@ -1,9 +1,11 @@
 import type { HarnessConfig } from "./types.ts";
 
 export const DEFAULT_CONFIG: Omit<HarnessConfig, "userPrompt" | "workDir"> = {
-  maxSprints: 10,
+  /** Hard cap per harness run (safety valve). Not a target for the planner—see planner prompt Sprint Plan. */
+  maxSprints: 100,
   maxRetriesPerSprint: 3,
   passThreshold: 7,
+  skipSpecConfirmation: false,
 };
 
 export const CLAUDE_MODEL = "claude-sonnet-4-6";
