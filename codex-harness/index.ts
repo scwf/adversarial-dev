@@ -6,35 +6,75 @@ import { log, logError, logDivider } from "../shared/logger.ts";
 import type { HarnessConfig } from "../shared/types.ts";
 
 let userPrompt: string | undefined;
+let skipSpecConfirmation = false;
+let specPath: string | undefined;
+let resume = false;
 
-const arg = process.argv[2];
-if (arg === "--file" || arg === "-f") {
-  const filePath = process.argv[3];
-  if (!filePath) {
-    console.error("Error: --file requires a path argument");
-    process.exit(1);
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) {
+  const a = args[i]!;
+  if (a === "--yes" || a === "-y") {
+    skipSpecConfirmation = true;
+    continue;
   }
-  userPrompt = await readFile(resolve(filePath), "utf-8");
-} else {
-  userPrompt = arg;
+  if (a === "--resume") {
+    resume = true;
+    continue;
+  }
+  if (a === "--spec") {
+    const pathArg = args[++i];
+    if (!pathArg) {
+      console.error("Error: --spec requires a path argument");
+      process.exit(1);
+    }
+    specPath = resolve(pathArg);
+    continue;
+  }
+  if (a === "--file" || a === "-f") {
+    const filePath = args[++i];
+    if (!filePath) {
+      console.error("Error: --file requires a path argument");
+      process.exit(1);
+    }
+    userPrompt = await readFile(resolve(filePath), "utf-8");
+    continue;
+  }
+  if (userPrompt === undefined) {
+    userPrompt = a;
+  }
 }
 
-if (!userPrompt) {
-  console.error("Usage: bun run codex-harness/index.ts <prompt>");
-  console.error('       bun run codex-harness/index.ts --file <path-to-prompt.md>');
+if (!userPrompt && !specPath && !resume) {
+  console.error("Usage: bun run codex-harness/index.ts [options] <prompt>");
+  console.error('       bun run codex-harness/index.ts --file <path-to-prompt.md> [options]');
+  console.error('       bun run codex-harness/index.ts --spec <path-to-spec.md> [options]');
+  console.error("       bun run codex-harness/index.ts --resume [options]");
+  console.error("Options:");
+  console.error("  --yes, -y       Skip interactive spec review after planning (useful for scripts).");
+  console.error("  --spec <path>   Skip the planner; load product spec from this file (any path).");
+  console.error("  --resume        Continue from workspace spec.md + progress.json (no planner).");
   console.error('Example: bun run codex-harness/index.ts "Build a task manager with REST API and dashboard"');
   process.exit(1);
 }
 
 const config: HarnessConfig = {
   ...DEFAULT_CONFIG,
-  userPrompt,
+  userPrompt: userPrompt ?? "",
   workDir: resolve("workspace/codex"),
+  skipSpecConfirmation,
+  ...(specPath !== undefined ? { specPath } : {}),
+  ...(resume ? { resume: true } : {}),
 };
 
 logDivider();
 log("HARNESS", "ADVERSARIAL DEV - Codex SDK Harness");
-log("HARNESS", `Prompt: "${userPrompt}"`);
+if (resume) {
+  log("HARNESS", `Resume from ${resolve("workspace/codex")} (progress.json + spec.md)`);
+} else if (specPath !== undefined) {
+  log("HARNESS", `Spec file: ${specPath} (planner skipped)`);
+} else {
+  log("HARNESS", `Prompt: "${userPrompt}"`);
+}
 logDivider();
 
 try {

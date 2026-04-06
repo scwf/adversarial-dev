@@ -46,11 +46,46 @@ Or pass a detailed prompt from a file:
 bun run claude-harness/index.ts --file prompt.md
 ```
 
+To **skip the planner** and start from an existing product spec (any path, absolute or relative to the current working directory). The harness reads that file and writes its contents to the workspace `spec.md`, then continues with contract negotiation and the generator/evaluator loop:
+
+```bash
+bun run claude-harness/index.ts --spec D:\plans\my-spec.md
+```
+
+After a run stops (for example a sprint fails or you interrupt it), you can **continue from the same workspace** without re-running the planner or earlier sprints:
+
+```bash
+bun run claude-harness/index.ts --resume
+```
+
 ### Run the Codex Harness
 
 ```bash
 bun run codex-harness/index.ts "Build a personal task manager with a REST API, interactive dashboard with charts, task categories, priority levels, due dates, and search functionality"
 ```
+
+```bash
+bun run codex-harness/index.ts --file prompt.md
+bun run codex-harness/index.ts --spec D:\plans\my-spec.md
+```
+
+```bash
+bun run codex-harness/index.ts --resume
+```
+
+### CLI options (both harnesses)
+
+| Flag | Meaning |
+|------|---------|
+| *(positional)* | Short user prompt (planning phase). |
+| `--file`, `-f` `<path>` | Read the planning prompt from a file. |
+| `--spec` `<path>` | Skip planning; load the product spec from this file and copy it into the workspace `spec.md`. You can run with **only** `--spec` (no positional prompt). |
+| `--resume` | Skip planning and **do not** reset the workspace artifacts: read `spec.md` and `progress.json`, infer the next sprint from `currentSprint`, reuse `contracts/sprint-{n}.json` when present, and pass the latest evaluator feedback into the generator when retrying that sprint. You can run with **only** `--resume` (no prompt). `--spec` is ignored if combined with `--resume` (the workspace `spec.md` is always used). |
+| `--yes`, `-y` | Skip the interactive step after the spec is ready: no pause to edit `spec.md` before sprints begin (useful for scripts and CI). |
+
+On a **normal** run, `initWorkspace` removes the previous `spec.md`, `progress.json`, and all files under `contracts/` and `feedback/` in that workspace. It does **not** delete the whole workspace folder or wipe `app/`. If you use `--spec`, the file is read **after** that cleanup, so do not point `--spec` at the workspace’s own `spec.md` path (that file may have just been deleted).
+
+With **`--resume`**, those files are **preserved** so you can pick up where the last run left off. If the last run already finished all sprints (`progress.json` status `complete`), `--resume` exits with an error.
 
 Both harnesses write their output to `workspace/claude/` and `workspace/codex/` respectively. The built application lives in `workspace/{sdk}/app/`.
 
@@ -60,7 +95,7 @@ Defaults are in `shared/config.ts`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `maxSprints` | 10 | Maximum number of sprints |
+| `maxSprints` | 100 | Hard cap per run (safety valve; not how many sprints the spec should aim for) |
 | `maxRetriesPerSprint` | 3 | Max evaluation retries before failing a sprint |
 | `passThreshold` | 7 | Minimum score (out of 10) for each criterion |
 | `CLAUDE_MODEL` | `claude-sonnet-4-6` | Model for Claude harness |
@@ -71,7 +106,7 @@ Defaults are in `shared/config.ts`:
 When you run a harness, here's what happens step by step:
 
 ### 1. Planning Phase
-The planner takes your short prompt and generates a comprehensive product specification with features organized into sprints, a design language, and tech stack decisions. This spec is written to `spec.md`.
+The planner takes your short prompt and generates a comprehensive product specification with features organized into sprints, a design language, and tech stack decisions. This spec is written to `spec.md`. If you passed `--spec <path>`, this phase is skipped: the harness loads that file and copies it into `spec.md` in the workspace instead.
 
 ### 2. Contract Negotiation (per sprint)
 The generator proposes what it will build and how success should be measured. The evaluator reviews the criteria, making them more specific, adding edge cases, and raising the bar. They iterate until locked in. The contract is saved as JSON.
@@ -91,11 +126,11 @@ Once all sprints pass, you have a working application built incrementally with q
 ## The Architecture
 
 ```
-User Prompt (1-4 sentences)
+User prompt or `--spec` (load existing spec file)
          |
          v
    +-----------+
-   |  PLANNER  |  --> writes spec.md (features, sprints, design language)
+   |  PLANNER  |  --> writes spec.md (features, sprints, stack; skipped if `--spec`)
    +-----------+
          |
          v  (for each sprint)
@@ -167,7 +202,8 @@ adversarial-dev/
 │   ├── config.ts        # Model and threshold defaults
 │   ├── prompts.ts       # Agent system prompts (identical for both SDKs)
 │   ├── logger.ts        # Colored console output
-│   └── files.ts         # File I/O for specs, contracts, feedback
+│   ├── files.ts         # File I/O for specs, contracts, feedback
+│   └── resume.ts        # Resume (--resume) helpers: sprint index, feedback loading
 ├── claude-harness/      # Claude Agent SDK implementation
 │   ├── index.ts         # CLI entry point
 │   ├── harness.ts       # Orchestration loop
