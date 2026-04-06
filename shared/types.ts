@@ -6,6 +6,11 @@ export interface HarnessConfig {
   passThreshold: number;
   /** If true, skip the interactive pause after planning (CI / non-interactive runs). */
   skipSpecConfirmation?: boolean;
+  /**
+   * Absolute path or path relative to the process cwd. When set, the planner phase is skipped;
+   * this file is read as the product spec (and copied to `spec.md` in the work directory).
+   */
+  specPath?: string;
 }
 
 export interface SprintContract {

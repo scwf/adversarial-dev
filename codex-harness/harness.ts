@@ -1,3 +1,5 @@
+import { readFile } from "fs/promises";
+import { resolve } from "path";
 import { Codex } from "@openai/codex-sdk";
 import {
   CONTRACT_NEGOTIATION_GENERATOR_PROMPT,
@@ -37,11 +39,6 @@ export async function runHarness(config: HarnessConfig): Promise<HarnessResult> 
 
   await initWorkspace(config.workDir);
 
-  // Phase 1: Planning
-  logDivider();
-  log("HARNESS", "PHASE 1: PLANNING");
-  logDivider();
-
   const progress: HarnessProgress = {
     status: "planning",
     currentSprint: 0,
@@ -51,16 +48,30 @@ export async function runHarness(config: HarnessConfig): Promise<HarnessResult> 
   };
   await writeProgress(config.workDir, progress);
 
-  const plannerResponse = await runPlanner(config.userPrompt, config.workDir);
-
-  // Planner may have written spec.md via its tools, or returned it as text
   let spec: string;
-  try {
-    spec = await readSpec(config.workDir);
-  } catch {
-    log("HARNESS", "Planner returned spec as text, writing to spec.md");
-    await writeSpec(config.workDir, plannerResponse);
-    spec = plannerResponse;
+  if (config.specPath) {
+    logDivider();
+    log("HARNESS", "PHASE 1: SKIPPED — using existing spec file");
+    logDivider();
+    const specFile = resolve(config.specPath);
+    spec = await readFile(specFile, "utf-8");
+    await writeSpec(config.workDir, spec);
+    log("HARNESS", `Loaded spec from ${specFile}`);
+  } else {
+    logDivider();
+    log("HARNESS", "PHASE 1: PLANNING");
+    logDivider();
+
+    const plannerResponse = await runPlanner(config.userPrompt, config.workDir);
+
+    // Planner may have written spec.md via its tools, or returned it as text
+    try {
+      spec = await readSpec(config.workDir);
+    } catch {
+      log("HARNESS", "Planner returned spec as text, writing to spec.md");
+      await writeSpec(config.workDir, plannerResponse);
+      spec = plannerResponse;
+    }
   }
 
   const skipSpecConfirm =
@@ -80,7 +91,10 @@ export async function runHarness(config: HarnessConfig): Promise<HarnessResult> 
     : 3; // Default to 3 if no sprint numbers found
 
   progress.totalSprints = totalSprints;
-  log("HARNESS", `Planner produced ${totalSprints} sprints`);
+  log(
+    "HARNESS",
+    config.specPath ? `Spec defines ${totalSprints} sprint(s)` : `Planner produced ${totalSprints} sprints`,
+  );
 
   // Phase 2-4: Sprint Loop
   for (let sprint = 1; sprint <= totalSprints; sprint++) {
