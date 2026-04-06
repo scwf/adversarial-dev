@@ -46,11 +46,33 @@ Or pass a detailed prompt from a file:
 bun run claude-harness/index.ts --file prompt.md
 ```
 
+To **skip the planner** and start from an existing product spec (any path, absolute or relative to the current working directory). The harness reads that file and writes its contents to the workspace `spec.md`, then continues with contract negotiation and the generator/evaluator loop:
+
+```bash
+bun run claude-harness/index.ts --spec D:\plans\my-spec.md
+```
+
 ### Run the Codex Harness
 
 ```bash
 bun run codex-harness/index.ts "Build a personal task manager with a REST API, interactive dashboard with charts, task categories, priority levels, due dates, and search functionality"
 ```
+
+```bash
+bun run codex-harness/index.ts --file prompt.md
+bun run codex-harness/index.ts --spec D:\plans\my-spec.md
+```
+
+### CLI options (both harnesses)
+
+| Flag | Meaning |
+|------|---------|
+| *(positional)* | Short user prompt (planning phase). |
+| `--file`, `-f` `<path>` | Read the planning prompt from a file. |
+| `--spec` `<path>` | Skip planning; load the product spec from this file and copy it into the workspace `spec.md`. You can run with **only** `--spec` (no positional prompt). |
+| `--yes`, `-y` | Skip the interactive step after the spec is ready: no pause to edit `spec.md` before sprints begin (useful for scripts and CI). |
+
+Each run calls `initWorkspace` first: it removes the previous `spec.md`, `progress.json`, and all files under `contracts/` and `feedback/` in that workspace. It does **not** delete the whole workspace folder or wipe `app/`. If you use `--spec`, the file is read **after** that cleanup, so do not point `--spec` at the workspace’s own `spec.md` path (that file may have just been deleted).
 
 Both harnesses write their output to `workspace/claude/` and `workspace/codex/` respectively. The built application lives in `workspace/{sdk}/app/`.
 
@@ -71,7 +93,7 @@ Defaults are in `shared/config.ts`:
 When you run a harness, here's what happens step by step:
 
 ### 1. Planning Phase
-The planner takes your short prompt and generates a comprehensive product specification with features organized into sprints, a design language, and tech stack decisions. This spec is written to `spec.md`.
+The planner takes your short prompt and generates a comprehensive product specification with features organized into sprints, a design language, and tech stack decisions. This spec is written to `spec.md`. If you passed `--spec <path>`, this phase is skipped: the harness loads that file and copies it into `spec.md` in the workspace instead.
 
 ### 2. Contract Negotiation (per sprint)
 The generator proposes what it will build and how success should be measured. The evaluator reviews the criteria, making them more specific, adding edge cases, and raising the bar. They iterate until locked in. The contract is saved as JSON.
@@ -91,11 +113,11 @@ Once all sprints pass, you have a working application built incrementally with q
 ## The Architecture
 
 ```
-User Prompt (1-4 sentences)
+User prompt or `--spec` (load existing spec file)
          |
          v
    +-----------+
-   |  PLANNER  |  --> writes spec.md (features, sprints, design language)
+   |  PLANNER  |  --> writes spec.md (features, sprints, stack; skipped if `--spec`)
    +-----------+
          |
          v  (for each sprint)
