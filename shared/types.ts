@@ -11,6 +11,10 @@ export interface HarnessConfig {
    * this file is read as the product spec (and copied to `spec.md` in the work directory).
    */
   specPath?: string;
+  /**
+   * When true, skip a fresh init wipe and planning; continue from progress.json and workspace spec.md.
+   */
+  resume?: boolean;
 }
 
 export interface SprintContract {

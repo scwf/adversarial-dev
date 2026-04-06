@@ -8,12 +8,17 @@ import type { HarnessConfig } from "../shared/types.ts";
 let userPrompt: string | undefined;
 let skipSpecConfirmation = false;
 let specPath: string | undefined;
+let resume = false;
 
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
   const a = args[i]!;
   if (a === "--yes" || a === "-y") {
     skipSpecConfirmation = true;
+    continue;
+  }
+  if (a === "--resume") {
+    resume = true;
     continue;
   }
   if (a === "--spec") {
@@ -39,13 +44,15 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-if (!userPrompt && !specPath) {
+if (!userPrompt && !specPath && !resume) {
   console.error("Usage: bun run codex-harness/index.ts [options] <prompt>");
   console.error('       bun run codex-harness/index.ts --file <path-to-prompt.md> [options]');
   console.error('       bun run codex-harness/index.ts --spec <path-to-spec.md> [options]');
+  console.error("       bun run codex-harness/index.ts --resume [options]");
   console.error("Options:");
   console.error("  --yes, -y       Skip interactive spec review after planning (useful for scripts).");
   console.error("  --spec <path>   Skip the planner; load product spec from this file (any path).");
+  console.error("  --resume        Continue from workspace spec.md + progress.json (no planner).");
   console.error('Example: bun run codex-harness/index.ts "Build a task manager with REST API and dashboard"');
   process.exit(1);
 }
@@ -56,11 +63,14 @@ const config: HarnessConfig = {
   workDir: resolve("workspace/codex"),
   skipSpecConfirmation,
   ...(specPath !== undefined ? { specPath } : {}),
+  ...(resume ? { resume: true } : {}),
 };
 
 logDivider();
 log("HARNESS", "ADVERSARIAL DEV - Codex SDK Harness");
-if (specPath !== undefined) {
+if (resume) {
+  log("HARNESS", `Resume from ${resolve("workspace/codex")} (progress.json + spec.md)`);
+} else if (specPath !== undefined) {
   log("HARNESS", `Spec file: ${specPath} (planner skipped)`);
 } else {
   log("HARNESS", `Prompt: "${userPrompt}"`);

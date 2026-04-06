@@ -12,11 +12,13 @@ import {
   initWorkspace,
   writeSpec,
   readSpec,
+  readProgress,
   writeContract,
   readContract,
   writeFeedback,
   writeProgress,
 } from "../shared/files.ts";
+import { getResumeStartSprint, getTotalSprintsFromSpec, loadLastEvalFromFeedback } from "../shared/resume.ts";
 import type {
   HarnessConfig,
   SprintContract,
@@ -32,73 +34,115 @@ import { runEvaluator } from "./evaluator.ts";
 
 export async function runHarness(config: HarnessConfig): Promise<HarnessResult> {
   const startTime = Date.now();
-  const results: SprintResult[] = [];
 
   log("HARNESS", "Initializing Claude Agent SDK harness");
   log("HARNESS", `Work directory: ${config.workDir}`);
   log("HARNESS", `Max sprints: ${config.maxSprints} | Max retries: ${config.maxRetriesPerSprint} | Threshold: ${config.passThreshold}/10`);
 
-  await initWorkspace(config.workDir);
-
-  const progress: HarnessProgress = {
-    status: "planning",
-    currentSprint: 0,
-    totalSprints: 0,
-    completedSprints: 0,
-    retryCount: 0,
-  };
-  await writeProgress(config.workDir, progress);
-
   let spec: string;
-  if (config.specPath) {
+  let progress: HarnessProgress;
+  const seededResults: SprintResult[] = [];
+  let startSprint = 1;
+  let totalSprints: number;
+
+  if (config.resume) {
+    if (config.specPath) {
+      log("HARNESS", "--spec is ignored when using --resume (using workspace spec.md).");
+    }
     logDivider();
-    log("HARNESS", "PHASE 1: SKIPPED — using existing spec file");
-    logDivider();
-    const specFile = resolve(config.specPath);
-    spec = await readFile(specFile, "utf-8");
-    await writeSpec(config.workDir, spec);
-    log("HARNESS", `Loaded spec from ${specFile}`);
-  } else {
-    logDivider();
-    log("HARNESS", "PHASE 1: PLANNING");
+    log("HARNESS", "RESUME — continuing from progress.json");
     logDivider();
 
-    const plannerResponse = await runPlanner(config.userPrompt, config.workDir);
+    await initWorkspace(config.workDir, { resume: true });
 
-    // Planner may have written spec.md via Write tool, or returned it as text
+    let saved: HarnessProgress;
+    try {
+      saved = await readProgress(config.workDir);
+    } catch {
+      throw new Error("Cannot resume: progress.json is missing or unreadable in the work directory.");
+    }
+
     try {
       spec = await readSpec(config.workDir);
     } catch {
-      log("HARNESS", "Planner returned spec as text, writing to spec.md");
-      await writeSpec(config.workDir, plannerResponse);
-      spec = plannerResponse;
+      throw new Error("Cannot resume: spec.md is missing in the work directory.");
     }
+
+    totalSprints = getTotalSprintsFromSpec(spec, config.maxSprints);
+    startSprint = getResumeStartSprint(saved, totalSprints);
+
+    for (let i = 1; i < startSprint; i++) {
+      seededResults.push({ sprintNumber: i, passed: true, attempts: 0 });
+    }
+
+    progress = {
+      ...saved,
+      totalSprints,
+      status: "negotiating",
+      retryCount: 0,
+    };
+
+    log(
+      "HARNESS",
+      `Resuming at sprint ${startSprint}/${totalSprints} (${saved.completedSprints} sprint(s) already completed).`,
+    );
+  } else {
+    await initWorkspace(config.workDir);
+
+    progress = {
+      status: "planning",
+      currentSprint: 0,
+      totalSprints: 0,
+      completedSprints: 0,
+      retryCount: 0,
+    };
+    await writeProgress(config.workDir, progress);
+
+    if (config.specPath) {
+      logDivider();
+      log("HARNESS", "PHASE 1: SKIPPED — using existing spec file");
+      logDivider();
+      const specFile = resolve(config.specPath);
+      spec = await readFile(specFile, "utf-8");
+      await writeSpec(config.workDir, spec);
+      log("HARNESS", `Loaded spec from ${specFile}`);
+    } else {
+      logDivider();
+      log("HARNESS", "PHASE 1: PLANNING");
+      logDivider();
+
+      const plannerResponse = await runPlanner(config.userPrompt, config.workDir);
+
+      // Planner may have written spec.md via Write tool, or returned it as text
+      try {
+        spec = await readSpec(config.workDir);
+      } catch {
+        log("HARNESS", "Planner returned spec as text, writing to spec.md");
+        await writeSpec(config.workDir, plannerResponse);
+        spec = plannerResponse;
+      }
+    }
+
+    const skipSpecConfirm =
+      config.skipSpecConfirmation === true ||
+      process.env.ADVERSARIAL_SKIP_SPEC_CONFIRM === "1";
+    if (!skipSpecConfirm) {
+      await waitForSpecConfirmation(config.workDir);
+      spec = await readSpec(config.workDir);
+    }
+
+    totalSprints = getTotalSprintsFromSpec(spec, config.maxSprints);
+    progress.totalSprints = totalSprints;
+    log(
+      "HARNESS",
+      config.specPath ? `Spec defines ${totalSprints} sprint(s)` : `Planner produced ${totalSprints} sprints`,
+    );
   }
 
-  const skipSpecConfirm =
-    config.skipSpecConfirmation === true ||
-    process.env.ADVERSARIAL_SKIP_SPEC_CONFIRM === "1";
-  if (!skipSpecConfirm) {
-    await waitForSpecConfirmation(config.workDir);
-    spec = await readSpec(config.workDir);
-  }
-
-  // Parse sprint count from spec - look for "Sprint N" patterns
-  const sprintNumbers = Array.from(spec.matchAll(/sprint\s+(\d+)/gi))
-    .map((m) => parseInt(m[1]!, 10))
-    .filter((n) => n > 0 && n <= config.maxSprints);
-  const totalSprints = sprintNumbers.length > 0
-    ? Math.min(Math.max(...sprintNumbers), config.maxSprints)
-    : 3; // Default to 3 if no sprint numbers found
-
-  progress.totalSprints = totalSprints;
-  log(
-    "HARNESS",
-    config.specPath ? `Spec defines ${totalSprints} sprint(s)` : `Planner produced ${totalSprints} sprints`,
-  );
+  const results: SprintResult[] = [...seededResults];
 
   // Phase 2-4: Sprint Loop
-  for (let sprint = 1; sprint <= totalSprints; sprint++) {
+  for (let sprint = startSprint; sprint <= totalSprints; sprint++) {
     logDivider();
     log("HARNESS", `SPRINT ${sprint}/${totalSprints}`);
     logDivider();
@@ -109,14 +153,20 @@ export async function runHarness(config: HarnessConfig): Promise<HarnessResult> 
     progress.retryCount = 0;
     await writeProgress(config.workDir, progress);
 
-    log("HARNESS", "Negotiating sprint contract...");
-    const contract = await negotiateContract(config.workDir, spec, sprint);
-    await writeContract(config.workDir, contract);
-    log("HARNESS", `Contract agreed: ${contract.criteria.length} criteria for ${contract.features.length} features`);
+    let contract: SprintContract;
+    try {
+      contract = await readContract(config.workDir, sprint);
+      log("HARNESS", `Using saved contract contracts/sprint-${sprint}.json`);
+    } catch {
+      log("HARNESS", "Negotiating sprint contract...");
+      contract = await negotiateContract(config.workDir, spec, sprint);
+      await writeContract(config.workDir, contract);
+      log("HARNESS", `Contract agreed: ${contract.criteria.length} criteria for ${contract.features.length} features`);
+    }
 
     // Phase 3-4: Build-Evaluate Loop
     let passed = false;
-    let lastEval: EvalResult | undefined;
+    let lastEval: EvalResult | undefined = await loadLastEvalFromFeedback(config.workDir, sprint);
     let attempts = 0;
 
     for (let retry = 0; retry <= config.maxRetriesPerSprint; retry++) {

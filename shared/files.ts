@@ -3,21 +3,23 @@ import { join } from "path";
 import { execSync } from "child_process";
 import type { SprintContract, EvalResult, HarnessProgress } from "./types.ts";
 
-export async function initWorkspace(workDir: string): Promise<void> {
+export async function initWorkspace(workDir: string, options?: { resume?: boolean }): Promise<void> {
   await mkdir(join(workDir, "contracts"), { recursive: true });
   await mkdir(join(workDir, "feedback"), { recursive: true });
   await mkdir(join(workDir, "app"), { recursive: true });
 
-  // Clean stale artifacts from previous runs
-  try { await unlink(join(workDir, "spec.md")); } catch {}
-  try { await unlink(join(workDir, "progress.json")); } catch {}
-  for (const dir of ["contracts", "feedback"]) {
-    try {
-      const files = await readdir(join(workDir, dir));
-      for (const f of files) {
-        await unlink(join(workDir, dir, f));
-      }
-    } catch {}
+  if (!options?.resume) {
+    // Clean stale artifacts from previous runs
+    try { await unlink(join(workDir, "spec.md")); } catch {}
+    try { await unlink(join(workDir, "progress.json")); } catch {}
+    for (const dir of ["contracts", "feedback"]) {
+      try {
+        const files = await readdir(join(workDir, dir));
+        for (const f of files) {
+          await unlink(join(workDir, dir, f));
+        }
+      } catch {}
+    }
   }
 
   // Initialize app/ as its own git repo so agent commits stay isolated
